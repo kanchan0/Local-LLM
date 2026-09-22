@@ -72,7 +72,7 @@ class Settings:
             app_secret_key=os.getenv("APP_SECRET_KEY", "development-only-change-me"),
             data_dir=data_dir,
             ollama_host=os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434"),
-            ollama_model=os.getenv("OLLAMA_MODEL", "llama3.3"),
+            ollama_model=os.getenv("OLLAMA_MODEL", "qwen3.5:9b"),
             ollama_thinking=_bool_env("OLLAMA_THINKING", True),
             app_host=os.getenv("APP_HOST", "127.0.0.1"),
             app_port=_int_env("APP_PORT", 8080),

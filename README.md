@@ -2,71 +2,161 @@
 
 Private LAN chat and document correction backed by Ollama.
 
+Requirements: Python 3.11–3.14 and Ollama running locally.
+
 The application provides one general chat window. Users can ask normal questions,
 write code, rewrite text, analyze files, and request grammar correction. DOCX/PDF
 correction requests produce a temporary corrected DOCX download.
 
-## Requirements
+## Prerequisite: install Ollama
 
-- Python 3.11–3.14.
-- Ollama installed and running locally.
-- `fonttools` is installed automatically for better PDF font decoding.
-- A model pulled into Ollama.
-- macOS for development or Windows Server 2022 for deployment.
+Install Ollama on the computer that will run SenaSaarthi AI. Ollama must be
+running locally at `http://127.0.0.1:11434`.
 
-Ollama must remain local to the application:
+### Windows
 
-```text
-http://127.0.0.1:11434
+Open PowerShell and run the official installer command:
+
+```powershell
+irm https://ollama.com/install.ps1 | iex
 ```
 
-Do not expose Ollama's port to the LAN. Expose only the application port.
+You can also download and run the installer from
+<https://ollama.com/download/windows>. After installation, open a new
+PowerShell window and pull the default model:
 
-## Development setup
+```powershell
+ollama --version
+ollama pull qwen3.5:9b
+ollama list
+```
+
+### Ubuntu
+
+Open a terminal and run the official Linux installer:
 
 ```bash
+sudo apt update
+sudo apt install -y curl
+curl -fsSL https://ollama.com/install.sh | sh
+ollama --version
+ollama pull qwen3.5:9b
+ollama list
+```
+
+If Ubuntu reports that Ollama is not running, start it in another terminal:
+
+```bash
+ollama serve
+```
+
+The official Linux instructions are available at
+<https://ollama.com/download/linux>.
+
+## Quick local test
+
+These instructions are for macOS. The defaults are already set for the model
+currently being used: `qwen3.5:9b`.
+
+### 1. Install and verify Ollama
+
+Install Ollama, start it, and pull the model:
+
+```bash
+ollama pull qwen3.5:9b
+ollama list
+```
+
+The model should appear as `qwen3.5:9b`.
+
+### 2. Create the Python environment
+
+From the project directory:
+
+```bash
+cd /Users/kanchan/Desktop/Local-LLM
 python3.11 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 pip install -e '.[test]'
+```
+
+If `.env` does not already exist, create it once:
+
+```bash
 cp .env.example .env
 ```
 
-Set a real `APP_SECRET_KEY` and the model you want to test in `.env`.
+If `.env` already exists, keep it and edit it; do not overwrite it.
 
-Start Ollama and pull a model, for example:
+### 3. Configure login accounts
 
-```bash
-ollama pull llama3.3
-```
-
-You can provision accounts either from `.env` or with the CLI. For automatic
-startup provisioning, add these values to `.env`:
+Edit `.env` and set these values. Use strong passwords of at least 10
+characters:
 
 ```text
+APP_SECRET_KEY=<long-random-secret>
 ADMIN_USERNAME=admin
-ADMIN_PASSWORD=<strong-admin-password>
+ADMIN_PASSWORD=<admin-password>
 USER_USERNAME=user
-USER_PASSWORD=<strong-user-password>
+USER_PASSWORD=<user-password>
 ```
 
-Each configured account is created only if that username does not already exist;
-restarting the application never overwrites an existing password. Passwords must
-be at least 10 characters. Do not commit `.env`.
-
-Alternatively, create the first administrator manually:
+Generate a secret with:
 
 ```bash
-python -m scripts.create_user --username admin --admin
+openssl rand -hex 32
 ```
 
-Start the website:
+Accounts are created automatically only when their usernames do not already
+exist. Existing passwords are never overwritten. Do not commit `.env`.
+
+If an account already exists and you need another one, use:
+
+```bash
+python -m scripts.create_user --username another-user
+python -m scripts.create_user --username another-admin --admin
+```
+
+### 4. Start the website
 
 ```bash
 python -m scripts.start_server
 ```
 
-Open http://127.0.0.1:8080.
+Open <http://127.0.0.1:8080> and sign in.
+
+## Default configuration
+
+These values come from `.env.example`. Values in your `.env` take priority.
+
+| Setting | Default |
+|---|---|
+| Model | `qwen3.5:9b` |
+| Ollama address | `http://127.0.0.1:11434` |
+| Thinking | Enabled |
+| Context window | `auto` — detected from the model |
+| Website address | `http://127.0.0.1:8080` |
+| Upload limit | 25 MB |
+| PDF limit | 50 pages |
+| DOCX limit | About 200,000 extracted characters |
+| Temporary file retention | 30 minutes |
+| Simultaneous generations | 2; additional requests wait in a queue |
+
+`MAX_CONCURRENT_JOBS` is a generation limit, not a user-account limit. Increase
+it only if the server GPU can handle more simultaneous model requests.
+
+## Basic test checklist
+
+1. Ask a normal question and confirm tokens appear while the model is generating.
+2. Start a response, then press **Stop**. The partial response should remain.
+3. Press **New chat** and confirm the temporary conversation is cleared.
+4. Attach a selectable-text PDF or DOCX and ask for a summary. Answers may include
+   references such as `[SOURCE: Page 3]` or `[SOURCE: Paragraph 00012]`.
+5. Ask to correct the attached document. A corrected DOCX should be downloadable.
+
+Scanned/image-only PDFs are not supported yet. PDF layout is not preserved
+exactly; PDF correction creates a new editable DOCX.
 
 ## LAN deployment
 
@@ -76,7 +166,7 @@ On Windows Server, set these environment values before starting:
 APP_SECRET_KEY=<long-random-secret>
 LOCAL_LLM_DATA_DIR=D:\LocalLLM\data
 OLLAMA_HOST=http://127.0.0.1:11434
-OLLAMA_MODEL=<benchmarked-model-tag>
+OLLAMA_MODEL=qwen3.5:9b
 OLLAMA_THINKING=true
 OLLAMA_NUM_CTX=auto
 APP_HOST=0.0.0.0
@@ -131,12 +221,12 @@ when necessary, and then starts the web application on the LAN interface.
 - `MAX_CONCURRENT_JOBS` controls simultaneous model generations; extra requests are
   queued, not rejected.
 
-## Testing
+## Automated tests
 
 ```bash
-pytest
+source .venv/bin/activate
+python -m pytest -q
 ```
 
-The tests do not require a running Ollama server. Live model benchmarking is a
-separate step and should be run on the target Windows GPU with the exact model
-tags being considered.
+The tests do not require a running Ollama server. Live testing uses the selected
+model and should be performed on the target machine/GPU.
