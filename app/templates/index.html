@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SenaSaarthi AI</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}?v=20260921-7" />
+  </head>
+  <body>
+    {% if not user %}
+    <main class="login-shell">
+      <section class="login-card">
+        <div class="brand-mark">S</div>
+        <h1>SenaSaarthi AI</h1>
+        <p class="muted">Private chat and document correction on your network.</p>
+        {% if login_error %}<div class="alert error">{{ login_error }}</div>{% endif %}
+        <form method="post" action="/login" class="login-form">
+          <label>Username<input name="username" autocomplete="username" required autofocus /></label>
+          <label>Password<input type="password" name="password" autocomplete="current-password" required /></label>
+          <button type="submit" class="primary full">Sign in</button>
+        </form>
+        <p class="hint">An administrator must create your account.</p>
+      </section>
+    </main>
+    {% else %}
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark small">S</span><span>SenaSaarthi AI</span></div>
+      <div class="topbar-actions">
+        <span class="model-label">{{ model }}</span>
+        <span class="user-label">{{ user.username }}</span>
+        <button id="new-chat" class="ghost new-chat-button" type="button">New chat</button>
+        {% if user.role == "admin" %}
+        <nav class="workspace-switch" aria-label="Workspace">
+          <a class="active" href="/" aria-current="page">Chat</a>
+          <a href="/admin">Admin Console</a>
+        </nav>
+        {% endif %}
+        <form method="post" action="/logout">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+          <button class="ghost" type="submit">Sign out</button>
+        </form>
+      </div>
+    </header>
+    <main class="chat-shell">
+      <section id="chat" class="chat-panel" aria-live="polite">
+        <div class="welcome" id="welcome">
+          <div class="welcome-emblem" aria-label="Patriotic tricolour motif"><span>✦</span></div>
+          <div class="tricolour-line" aria-hidden="true"><i></i><i></i><i></i></div>
+          <h1>Welcome, Officers</h1>
+          <p>How can I help you today?</p>
+          <p class="welcome-subtitle">Ask a question, write code, rewrite text, or attach a DOCX/PDF for review.</p>
+        </div>
+      </section>
+      <section class="composer-shell">
+        <div id="attachment" class="attachment hidden"></div>
+        <form id="composer" class="composer">
+          <textarea id="prompt" rows="1" placeholder="Message your local model…" autocomplete="off"></textarea>
+          <div class="composer-actions">
+            <label class="attach-button" title="Attach a document or text file">
+              <input id="file-input" type="file" accept=".docx,.pdf,.txt,.md,.py,.js,.ts,.java,.json,.csv" />
+              <span>＋ Attach</span>
+            </label>
+            <span id="status" class="status"></span>
+            <button id="send" class="primary send" type="submit">Send <span>↵</span></button>
+          </div>
+        </form>
+        <p class="disclaimer">Temporary conversations and uploaded files are removed automatically. Review generated corrections before use.</p>
+      </section>
+    </main>
+    <script>window.LOCAL_LLM = {{ {"csrf_token": csrf_token}|tojson }};</script>
+    <script src="{{ url_for('static', path='app.js') }}?v=20260921-7"></script>
+    {% endif %}
+  </body>
+</html>

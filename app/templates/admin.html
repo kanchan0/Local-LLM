@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SenaSaarthi AI — Administration</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='styles.css') }}?v=20260921-7" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark small">S</span><span>SenaSaarthi AI</span></div>
+      <div class="topbar-actions">
+        <nav class="workspace-switch" aria-label="Workspace">
+          <a href="/">Chat</a>
+          <a class="active" href="/admin" aria-current="page">Admin Console</a>
+        </nav>
+        <span class="user-label">{{ user.username }}</span>
+        <form method="post" action="/logout">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+          <button class="ghost" type="submit">Sign out</button>
+        </form>
+      </div>
+    </header>
+
+    <main class="admin-shell">
+      <div class="admin-heading">
+        <div>
+          <p class="eyebrow">ADMINISTRATION</p>
+          <h1>User management</h1>
+          <p class="muted">Provision accounts for approved LAN users. Public signup is disabled.</p>
+        </div>
+        <div class="active-stat"><strong data-active-count>{{ active_count }}</strong><span>active now</span></div>
+      </div>
+
+      {% if error %}<div class="alert error">{{ error }}</div>{% endif %}
+      {% if notice %}<div class="alert success">{{ notice }}</div>{% endif %}
+
+      <section class="dashboard-grid" aria-live="polite">
+        <div class="dashboard-card">
+          <span>Active users</span>
+          <strong data-active-count>{{ active_count }}</strong>
+          <small>Seen within the last five minutes</small>
+        </div>
+        <div class="dashboard-card">
+          <span>Model service</span>
+          <strong id="ollama-status">Checking…</strong>
+          <small id="ollama-detail">Checking Ollama and the configured model</small>
+        </div>
+        <div class="dashboard-card">
+          <span>Generation jobs</span>
+          <strong id="job-status">0 running</strong>
+          <small id="job-detail">Queue: 0 · Limit: checking…</small>
+        </div>
+        <div class="dashboard-card">
+          <span>Context window</span>
+          <strong id="context-window">Checking…</strong>
+          <small>Detected from the selected model</small>
+        </div>
+      </section>
+
+      <div class="admin-grid">
+        <section class="admin-card">
+          <h2>Add account</h2>
+          <p class="muted small-text">Passwords must contain at least 10 characters.</p>
+          <form method="post" action="/admin/users" class="admin-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+            <label>Username<input name="username" autocomplete="off" required /></label>
+            <label>Temporary password<input type="password" name="password" minlength="10" required /></label>
+            <label>Role<select name="role"><option value="user">User</option><option value="admin">Administrator</option></select></label>
+            <button class="primary" type="submit">Create account</button>
+          </form>
+        </section>
+
+        <section class="admin-card accounts-card">
+          <div class="card-heading"><div><h2>Accounts</h2><p class="muted small-text">Active means activity within the last five minutes.</p></div><span class="count-pill">{{ users|length }}</span></div>
+          <div class="user-table-wrap">
+            <table class="user-table">
+              <thead><tr><th>User</th><th>Status</th><th>Last seen</th><th>Actions</th></tr></thead>
+              <tbody>
+                {% for item in users %}
+                <tr>
+                  <td><strong>{{ item.username }}</strong><small>{{ item.role }}</small></td>
+                  <td><span class="state-pill {{ 'active' if item.active else ('enabled' if item.enabled else 'disabled') }}">{{ 'Active' if item.active else ('Enabled' if item.enabled else 'Disabled') }}</span></td>
+                  <td class="date-cell">{{ item.last_seen_at or 'Never' }}</td>
+                  <td class="actions-cell">
+                    <form method="post" action="/admin/users/{{ item.id }}/toggle">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                      <button class="small-button" type="submit" {% if item.id == user.id %}disabled title="You cannot disable your own account"{% endif %}>{{ 'Disable' if item.enabled else 'Enable' }}</button>
+                    </form>
+                    <form method="post" action="/admin/users/{{ item.id }}/reset-password" class="reset-form">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                      <input type="password" name="password" minlength="10" placeholder="New password" required />
+                      <button class="small-button" type="submit">Reset</button>
+                    </form>
+                    <form method="post" action="/admin/users/{{ item.id }}/revoke-sessions">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+                      <button class="small-button" type="submit" {% if item.id == user.id %}disabled title="You cannot revoke your own current session"{% endif %}>Revoke sessions</button>
+                    </form>
+                  </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="4" class="empty-cell">No accounts found.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <script>
+      const csrfToken = {{ csrf_token|tojson }};
+      const numberFormat = new Intl.NumberFormat();
+      async function refreshAdminStatus() {
+        try {
+          const response = await fetch('/api/admin/status', { headers: { 'Accept': 'application/json' } });
+          if (!response.ok) throw new Error('status unavailable');
+          const data = await response.json();
+          document.querySelectorAll('[data-active-count]').forEach((node) => { node.textContent = data.active_users; });
+          const model = data.ollama || {};
+          const modelStatus = document.getElementById('ollama-status');
+          const modelDetail = document.getElementById('ollama-detail');
+          modelStatus.textContent = !model.reachable ? 'Offline' : (model.model_available ? 'Ready' : 'Model missing');
+          modelStatus.className = model.reachable && model.model_available ? 'status-good' : 'status-bad';
+          modelDetail.textContent = model.reachable ? `${model.model} · ${model.model_available ? 'available' : 'pull it in Ollama'}` : 'Ollama is not reachable on the server';
+          const jobs = data.jobs || {};
+          document.getElementById('job-status').textContent = `${jobs.running || 0} running`;
+          document.getElementById('job-detail').textContent = `Queue: ${jobs.queued || 0} · Limit: ${jobs.limit || 0}`;
+          const context = model.context_window;
+          document.getElementById('context-window').textContent = context ? `${numberFormat.format(context)} tokens` : 'Ollama default';
+        } catch (_) {
+          document.getElementById('ollama-status').textContent = 'Unavailable';
+          document.getElementById('ollama-detail').textContent = 'Could not read live server status';
+        }
+      }
+      refreshAdminStatus();
+      window.setInterval(refreshAdminStatus, 15000);
+      window.setInterval(() => {
+        if (!document.hidden) fetch('/api/heartbeat', { method: 'POST', headers: { 'X-CSRF-Token': csrfToken } }).catch(() => {});
+      }, 60000);
+    </script>
+  </body>
+</html>
